@@ -5,7 +5,7 @@
 // Created by: Steven Smethurst
 // Last updated: May 16, 2017
 //
-// ToDo: If they push the button and there is no cursor  there. is that a game over? 
+// ToDo: If they push the button and there is no cursor  there. is that a game over?
 
 #include "FastLED.h"
 
@@ -20,6 +20,8 @@ static const unsigned char SETTINGS_MAX_CURSORS = 30;
 // Pins
 static const unsigned char SETTING_PIN_LED_DATA = 12;
 static const unsigned char SETTING_PIN_PLAYER_GREEN_BUTTON = 2;
+static const unsigned char SETTING_PIN_PLAYER_BLUE_BUTTON = 3;
+static const unsigned char SETTING_PIN_PLAYER_RED_BUTTON = 4;
 static const unsigned int SETTING_SERIAL_BAUD_RATE = 9600;
 
 // Buttons
@@ -63,7 +65,7 @@ public:
     }
 };
 
-static const unsigned char BUTTON_MAX = 1;
+static const unsigned char BUTTON_MAX = 3;
 CButtons inputsButtons[BUTTON_MAX];
 
 // Game states
@@ -171,6 +173,8 @@ void setup()
 
     // Buttons.
     inputsButtons[0].Init(SETTING_PIN_PLAYER_GREEN_BUTTON, CRGB::Green);
+    inputsButtons[1].Init(SETTING_PIN_PLAYER_BLUE_BUTTON, CRGB::Blue);
+    inputsButtons[2].Init(SETTING_PIN_PLAYER_RED_BUTTON, CRGB::Red);
 
     // initialize serial communications
     Serial.begin(SETTING_SERIAL_BAUD_RATE);
@@ -213,9 +217,9 @@ void gameStart()
     }
 
     // Set up the goal
-    leds[0] = CRGB::Red;
-    leds[1] = CRGB::Red;
-    leds[2] = CRGB::Red;
+    leds[0] = CRGB::Yellow;
+    leds[1] = CRGB::Yellow;
+    leds[2] = CRGB::Yellow;
 
     // Set up the cursor
     leds[SETTINGS_NUM_LEDS - 1] = CRGB::Green;
@@ -245,9 +249,9 @@ void gameLoop()
     }
 
     // Set up the goal
-    leds[0] = CRGB::Red;
-    leds[1] = CRGB::Red;
-    leds[2] = CRGB::Red;
+    leds[0] = CRGB::Yellow;
+    leds[1] = CRGB::Yellow;
+    leds[2] = CRGB::Yellow;
 
     // Move the cursors.
     for (int currsorOffset = 0; currsorOffset < SETTINGS_MAX_CURSORS; currsorOffset++) {
