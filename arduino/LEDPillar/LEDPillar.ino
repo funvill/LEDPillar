@@ -8,6 +8,8 @@
 // ToDo: If they push the button and there is no cursor  there. is that a game over?
 
 #include "FastLED.h"
+#include "LedMatrix.h"
+#include <SPI.h>
 
 FASTLED_USING_NAMESPACE
 
@@ -18,11 +20,16 @@ static const unsigned char SETTINGS_MAX_CURSORS = 30;
 #define SETTINGS_FRAMES_PER_SECOND 120
 
 // Pins
-static const unsigned char SETTING_PIN_LED_DATA = 12;
+static const unsigned char SETTING_PIN_LED_DATA = 6;
+static const unsigned char SETTING_SCORE_BOARD_CS = 10;
 static const unsigned char SETTING_PIN_PLAYER_GREEN_BUTTON = 2;
 static const unsigned char SETTING_PIN_PLAYER_BLUE_BUTTON = 3;
 static const unsigned char SETTING_PIN_PLAYER_RED_BUTTON = 4;
 static const unsigned int SETTING_SERIAL_BAUD_RATE = 9600;
+
+// Score display
+static const unsigned char SETTING_SCORE_BOARD_DISPLAYS = 4;
+LedMatrix ledMatrix = LedMatrix(SETTING_SCORE_BOARD_DISPLAYS, SETTING_SCORE_BOARD_CS);
 
 // Buttons
 class CButtons {
@@ -179,6 +186,13 @@ void setup()
     // initialize serial communications
     Serial.begin(SETTING_SERIAL_BAUD_RATE);
 
+    // led Matrix
+    ledMatrix.init();
+    ledMatrix.setRotation(true);
+    ledMatrix.setTextAlignment(TEXT_ALIGN_LEFT);
+    ledMatrix.setCharWidth(8);
+    ledMatrix.setText("0000");
+
     reset();
 }
 
@@ -287,6 +301,14 @@ void gameLoop()
     EVERY_N_MILLISECONDS(creationSpeed) { createCursor(); } // change patterns periodically
 }
 
+void UpdateScoreBoard()
+{
+    ledMatrix.clear();
+    ledMatrix.setText(String(gameScore));
+    ledMatrix.drawText();
+    ledMatrix.commit();
+}
+
 void loop()
 {
     Serial.println("");
@@ -307,6 +329,9 @@ void loop()
     } else {
         Serial.print(" Error: Unknown gameState = " + String(gameState));
     }
+
+    // Update score board
+    UpdateScoreBoard();
 
     // send the 'leds' array out to the actual LED strip
     FastLED.show();
