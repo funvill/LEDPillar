@@ -17,7 +17,8 @@ FASTLED_USING_NAMESPACE
 // ----------------------------------------------------------------------------
 static const unsigned char SETTINGS_NUM_LEDS = 30; // The number of LEDs in this strip.
 static const unsigned char SETTINGS_MAX_CURSORS = 30;
-#define SETTINGS_FRAMES_PER_SECOND 120
+static const unsigned char SETTINGS_FRAMES_PER_SECOND = 120;
+static const unsigned char SETTINGS_GOAL_SIZE = 5;
 
 // Pins
 static const unsigned char SETTING_PIN_LED_DATA = 6;
@@ -221,6 +222,13 @@ void createCursor()
     Serial.print(" Error: No more cursors to create.");
 }
 
+void drawGoal() {
+    // Set up the goal
+    for( unsigned char ledOffset = 0 ; ledOffset < SETTINGS_GOAL_SIZE ; ledOffset++ ) {
+        leds[ledOffset] = CRGB::Yellow;
+    }
+}
+
 void gameStart()
 {
     Serial.print(" | gameState = Start");
@@ -230,13 +238,7 @@ void gameStart()
         leds[ledOffset] = CRGB::Black;
     }
 
-    // Set up the goal
-    leds[0] = CRGB::Yellow;
-    leds[1] = CRGB::Yellow;
-    leds[2] = CRGB::Yellow;
-
-    // Set up the cursor
-    leds[SETTINGS_NUM_LEDS - 1] = CRGB::Green;
+    drawGoal(); 
 
     // If any button is pressed start the game.
     for (int i = 0; i < BUTTON_MAX; i++) {
@@ -262,10 +264,8 @@ void gameLoop()
         leds[ledOffset] = CRGB::Black;
     }
 
-    // Set up the goal
-    leds[0] = CRGB::Yellow;
-    leds[1] = CRGB::Yellow;
-    leds[2] = CRGB::Yellow;
+    drawGoal(); 
+
 
     // Move the cursors.
     for (int currsorOffset = 0; currsorOffset < SETTINGS_MAX_CURSORS; currsorOffset++) {
@@ -275,7 +275,7 @@ void gameLoop()
         cursor[currsorOffset].loop();
 
         // Check to see if this is in the cursor offset area.
-        if (cursor[currsorOffset].location < 3) {
+        if (cursor[currsorOffset].location < SETTINGS_GOAL_SIZE) {
             // Check to see if the corresponding button has been pressed.
             for (int buttonOffset = 0; buttonOffset < BUTTON_MAX; buttonOffset++) {
                 if (inputsButtons[buttonOffset].color == cursor[currsorOffset].color) {
