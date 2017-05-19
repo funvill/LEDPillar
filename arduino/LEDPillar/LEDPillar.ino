@@ -24,6 +24,14 @@ static const unsigned char SETTING_GLOBAL_BRIGHTNESS = 96; // Set the global bri
 static const unsigned char SETTINGS_GOAL_SIZE = 5; // The size of the goal at the bottom of the pillar.
 static CRGB SETTING_GOAL_COLOR = CRGB::Yellow;
 
+static const unsigned short SETTING_CREATION_SPEED_START = 1000 * 5; // The starting time for how often to create a new beat.
+static const unsigned short SETTING_CREATION_SPEED_END = 1000 * 1; // The minimum time for how often to create a new beat.
+static const unsigned short SETTING_CREATION_SPEED_INCREMENT = 200 ; // How much faster the creation beats get each time the user scores. 
+
+static const unsigned short SETTING_BEAT_SPEED_START = 50; // The starting speed for the movement of the beats. 
+static const unsigned short SETTING_BEAT_SPEED_END = 1; // The fastest speed for the movement of the beats. 
+static const unsigned short SETTING_BEAT_SPEED_INCREMENT = 5 ; // How much faster the movement of beats get each time the user scores. 
+
 // Pins
 // ----------------------------------------------------------------------------
 static const unsigned char SETTING_PIN_LED_DATA = 6;
@@ -50,7 +58,8 @@ unsigned int gameScore;
 
 // Creation speed.
 // The speed that new beats will be created on the pillar at a time.
-unsigned short creationSpeed;
+short creationSpeed;
+short beatsMovementSpeed ; 
 
 // LEDs
 // The current status of all the LEDS
@@ -126,7 +135,7 @@ public:
         }
     }
 
-    bool create()
+    bool create( unsigned char movementSpeed = SETTING_BEAT_SPEED_START )
     {
         if (isAlive) {
             // This beats is alive. We can not create on it.
@@ -134,7 +143,7 @@ public:
         }
 
         lastMove = 0;
-        speed = 50;
+        speed = movementSpeed;
         location = SETTINGS_NUM_LEDS;
 
         isAlive = true;
@@ -240,9 +249,10 @@ void setup()
 
 void reset()
 {
-    Serial.println("FYI: Resetting the game back to defaults");
+    Serial.println(" FYI: Resetting the game back to defaults");
     gameScore = 0;
-    creationSpeed = 1000 * 5;
+    creationSpeed = SETTING_CREATION_SPEED_START;
+    beatsMovementSpeed = SETTING_BEAT_SPEED_START ; 
     gameState = GAME_STATE_STARTUP;
 
     // Set all the LEDS to black
@@ -260,12 +270,33 @@ void createbeats()
 {
     // Search thought the list of beatss and find one that we can create.
     for (unsigned char offsetBeat = 0; offsetBeat < SETTINGS_MAX_BEATS; offsetBeat++) {
-        if (beats[offsetBeat].create()) {
+        if (beats[offsetBeat].create(beatsMovementSpeed)) {
             Serial.print(" FYI: beats was created at offsetBeat = " + String(offsetBeat));
             return; // We were able to create a new beats
         }
     }
     Serial.print(" Error: No more beatss to create.");
+}
+
+void gameScored(CRGB color)
+{
+    gameScore++;
+
+    // Increase the creation speed of new beats. 
+    creationSpeed -= SETTING_CREATION_SPEED_INCREMENT ;
+    if (creationSpeed < SETTING_CREATION_SPEED_END) {
+        creationSpeed = SETTING_CREATION_SPEED_END;
+    }
+
+    // Increase the speed that the beats move 
+    beatsMovementSpeed -= SETTING_BEAT_SPEED_INCREMENT ;
+    if (beatsMovementSpeed < SETTING_BEAT_SPEED_END) {
+        beatsMovementSpeed = SETTING_BEAT_SPEED_END;
+    }
+
+    
+
+    Serial.println(" FYI: Game scored, beatsMovementSpeed = " + String(beatsMovementSpeed) + ", new creationSpeed = " + String(creationSpeed));
 }
 
 void gameOver()
@@ -276,6 +307,12 @@ void gameOver()
 void gameLoop()
 {
     Serial.print(" | gameState = Loop");
+
+    // Draw the goal.
+    // We want to draw the goal first so that it can be overwritten by the moving beats.
+    for (unsigned char offsetLED = 0; offsetLED < SETTINGS_GOAL_SIZE; offsetLED++) {
+        leds[offsetLED] = SETTING_GOAL_COLOR;
+    }
 
     // Move the beatss.
     for (int offsetBeats = 0; offsetBeats < SETTINGS_MAX_BEATS; offsetBeats++) {
@@ -292,7 +329,7 @@ void gameLoop()
                     // We found the right button
                     if (inputsButtons[offsetButton].isButtonDown()) {
                         // The right button and the right color has been pressed.
-                        gameScore++;
+                        gameScored(inputsButtons[offsetButton].color);
                         beats[offsetBeats].reset();
                         break;
                     }
@@ -301,19 +338,19 @@ void gameLoop()
 
             if (beats[offsetBeats].location == 0) {
                 // Game over
-                Serial.print(" FYI: Game over offsetBeats = " + String(offsetBeats));
-                beats[offsetBeats].isAlive = false;
+                Serial.println(" FYI: Game over offsetBeats = " + String(offsetBeats));
+                beats[offsetBeats].reset();
+                gameScored(beats[offsetBeats].color); // Debug: Show the progression of the game.
             }
         }
     }
 
-    // Draw the goal.
-    for (unsigned char offsetLED = 0; offsetLED < SETTINGS_GOAL_SIZE; offsetLED++) {
-        leds[offsetLED] = SETTING_GOAL_COLOR;
+    // Create a new beat as needed.
+    static unsigned long lastCreation = 0;
+    if (lastCreation < millis() - creationSpeed) {
+        lastCreation = millis();
+        createbeats();
     }
-
-    // Create new beatss if needed.
-    EVERY_N_MILLISECONDS(creationSpeed) { createbeats(); } // change patterns periodically
 }
 
 void UpdateScoreBoard()
@@ -342,7 +379,7 @@ void loop()
     } else if (gameState == GAME_STATE_GAMEOVER) {
         gameOver();
     } else {
-        Serial.print(" Error: Unknown gameState = " + String(gameState));
+        Serial.println(" Error: Unknown gameState = " + String(gameState));
     }
 
     // Update score board
@@ -360,7 +397,7 @@ void loop()
 // Used for demo patterns
 // List of patterns to cycle through.  Each is defined as a separate function below.
 typedef void (*SimplePatternList[])();
-SimplePatternList gPatterns = { rainbow, rainbowWithGlitter, confetti, sinelon, juggle, bpm };
+SimplePatternList gPatterns = { rainbowWithGlitter, confetti, sinelon, juggle, bpm };
 uint8_t gCurrentPatternNumber = 0; // Index number of which pattern is current
 uint8_t gHue = 0; // rotating "base color" used by many of the patterns
 
@@ -385,9 +422,12 @@ void gameStart()
     // If any button is pressed start the game.
     for (int offsetButton = 0; offsetButton < BUTTON_MAX; offsetButton++) {
         if (inputsButtons[offsetButton].isButtonDown()) {
-            // A button has been pressed.
+            // A button has been pressed. Start the game
+            // Set all the LEDS to black
+            for (unsigned short offsetLED = 0; offsetLED < SETTINGS_NUM_LEDS; offsetLED++) {
+                leds[offsetLED] = CRGB::Black;
+            }
             gameState = GAME_STATE_RUNNING;
-            createbeats();
         }
     }
 }
