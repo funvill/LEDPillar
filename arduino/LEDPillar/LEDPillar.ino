@@ -5,7 +5,7 @@
 // Created by: Steven Smethurst
 // Last updated: May 16, 2017
 //
-// ToDo: If they push the button and there is no cursor  there. is that a game over?
+// ToDo: If they push the button and there is no beats  there. is that a game over?
 
 #include "FastLED.h"
 #include "LedMatrix.h"
@@ -16,9 +16,10 @@ FASTLED_USING_NAMESPACE
 // Game Settings
 // ----------------------------------------------------------------------------
 static const unsigned char SETTINGS_NUM_LEDS = 30; // The number of LEDs in this strip.
-static const unsigned char SETTINGS_MAX_CURSORS = 30;
+static const unsigned char SETTINGS_MAX_BEATS = 30;
 static const unsigned char SETTINGS_FRAMES_PER_SECOND = 120;
 static const unsigned char SETTINGS_GOAL_SIZE = 5;
+static const unsigned char SETTING_BEAT_TAIL_LENGTH = 4; // The length of the fading tail. 
 
 // Pins
 static const unsigned char SETTING_PIN_LED_DATA = 6;
@@ -90,32 +91,42 @@ unsigned short creationSpeed;
 // The current status of all the LEDS
 CRGB leds[SETTINGS_NUM_LEDS];
 
-class CCursors {
+class CBeats {
 private:
     unsigned long lastMove;
 
 public:
     bool isAlive;
     unsigned short location;
-
     unsigned short speed; // Lower is faster
-
     CRGB color;
 
-    CCursors()
+
+    Cbeatss()
     {
+        reset();
+    }
+
+    void reset()
+    {
+        // This beat is dead 
         isAlive = false;
+
+        // Change any of the tail of the LEDs to black
+        for (int offsetLED = location; offsetLED < SETTINGS_NUM_LEDS && (offsetLED - location) < SETTING_BEAT_TAIL_LENGTH; offsetLED++) {
+            leds[offsetLED] = CRGB::Black;
+        }
     }
 
     bool create()
     {
         if (isAlive) {
-            // This cursor is alive. We can not create on it.
+            // This beats is alive. We can not create on it.
             return false;
         }
 
         lastMove = 0;
-        speed = 200;
+        speed = 50;
         location = SETTINGS_NUM_LEDS;
 
         isAlive = true;
@@ -135,6 +146,7 @@ public:
 
         return true;
     }
+    
 
     void draw()
     {
@@ -142,13 +154,22 @@ public:
             // Do nothing
             return;
         }
-        // ToDo: Remove the old color
         leds[location] = color;
     }
 
     void move()
     {
+        // Move the beats.
         location--;
+       
+       // Create a tail of fading LEDs. 
+        for (int offsetLED = location; offsetLED < SETTINGS_NUM_LEDS && (offsetLED - location) < SETTING_BEAT_TAIL_LENGTH; offsetLED++) {
+            leds[offsetLED].fadeToBlackBy( 220 - ((offsetLED - location)*20) );
+        }
+        // ensure that the last LED in the tail is black. 
+        if (location < SETTINGS_NUM_LEDS - SETTING_BEAT_TAIL_LENGTH) {
+            leds[location + SETTING_BEAT_TAIL_LENGTH] = CRGB::Black;
+        }
     }
 
     void loop()
@@ -158,13 +179,14 @@ public:
             return;
         }
 
-        // Check for dead cursors.
+        // Check for dead beatss.
         if (location == 0) {
-            isAlive = false;
+            reset();
             return;
         }
 
         if (lastMove < millis() - speed) {
+            lastMove = millis() ; 
             move();
         }
 
@@ -172,7 +194,7 @@ public:
     }
 };
 
-CCursors cursor[SETTINGS_MAX_CURSORS];
+CBeats beats[SETTINGS_MAX_BEATS];
 
 void setup()
 {
@@ -200,31 +222,37 @@ void setup()
 void reset()
 {
     gameScore = 0;
-    creationSpeed = 1000 * 1;
+    creationSpeed = 1000 * 5;
     gameState = GAME_STATE_STARTUP;
 
     // Set all the LEDS to black
     for (unsigned short ledOffset = 0; ledOffset < SETTINGS_NUM_LEDS; ledOffset++) {
         leds[ledOffset] = CRGB::Black;
     }
+
+    //
+    for (unsigned short beatsOffset = 0; beatsOffset < SETTINGS_MAX_BEATS; beatsOffset++) {
+        beats[beatsOffset].reset();
+    }
 }
 
-void createCursor()
+void createbeats()
 {
-    // Search thought the list of cursors and find one that we can create.
-    for (int i = 0; i < SETTINGS_MAX_CURSORS; i++) {
-        if (cursor[i].create()) {
-            Serial.print(" FYI: Cursor was created at offset = " + String(i));
-            return; // We were able to create a new cursor
+    // Search thought the list of beatss and find one that we can create.
+    for (int i = 0; i < SETTINGS_MAX_BEATS; i++) {
+        if (beats[i].create()) {
+            Serial.print(" FYI: beats was created at offset = " + String(i));
+            return; // We were able to create a new beats
         }
     }
 
-    Serial.print(" Error: No more cursors to create.");
+    Serial.print(" Error: No more beatss to create.");
 }
 
-void drawGoal() {
+void drawGoal()
+{
     // Set up the goal
-    for( unsigned char ledOffset = 0 ; ledOffset < SETTINGS_GOAL_SIZE ; ledOffset++ ) {
+    for (unsigned char ledOffset = 0; ledOffset < SETTINGS_GOAL_SIZE; ledOffset++) {
         leds[ledOffset] = CRGB::Yellow;
     }
 }
@@ -238,14 +266,14 @@ void gameStart()
         leds[ledOffset] = CRGB::Black;
     }
 
-    drawGoal(); 
+    drawGoal();
 
     // If any button is pressed start the game.
     for (int i = 0; i < BUTTON_MAX; i++) {
         if (inputsButtons[i].isButtonDown()) {
             // A button has been pressed.
             gameState = GAME_STATE_RUNNING;
-            createCursor();
+            createbeats();
         }
     }
 }
@@ -259,46 +287,40 @@ void gameLoop()
 {
     Serial.print(" | gameState = Loop");
 
-    // Set all the LEDS to black
-    for (unsigned short ledOffset = 0; ledOffset < SETTINGS_NUM_LEDS; ledOffset++) {
-        leds[ledOffset] = CRGB::Black;
-    }
+    drawGoal();
 
-    drawGoal(); 
-
-
-    // Move the cursors.
-    for (int currsorOffset = 0; currsorOffset < SETTINGS_MAX_CURSORS; currsorOffset++) {
-        if (!cursor[currsorOffset].isAlive) {
+    // Move the beatss.
+    for (int beatsOffset = 0; beatsOffset < SETTINGS_MAX_BEATS; beatsOffset++) {
+        if (!beats[beatsOffset].isAlive) {
             continue;
         }
-        cursor[currsorOffset].loop();
+        beats[beatsOffset].loop();
 
-        // Check to see if this is in the cursor offset area.
-        if (cursor[currsorOffset].location < SETTINGS_GOAL_SIZE) {
+        // Check to see if this is in the beats offset area.
+        if (beats[beatsOffset].location < SETTINGS_GOAL_SIZE) {
             // Check to see if the corresponding button has been pressed.
             for (int buttonOffset = 0; buttonOffset < BUTTON_MAX; buttonOffset++) {
-                if (inputsButtons[buttonOffset].color == cursor[currsorOffset].color) {
+                if (inputsButtons[buttonOffset].color == beats[beatsOffset].color) {
                     // We found the right button
                     if (inputsButtons[buttonOffset].isButtonDown()) {
                         // The right button and the right color has been pressed.
                         gameScore++;
-                        cursor[currsorOffset].isAlive = false;
+                        beats[beatsOffset].reset(); 
                         break;
                     }
                 }
             }
 
-            if (cursor[currsorOffset].location == 0) {
+            if (beats[beatsOffset].location == 0) {
                 // Game over
-                Serial.print(" FYI: Game over currsorOffset = " + String(currsorOffset));
-                cursor[currsorOffset].isAlive = false;
+                Serial.print(" FYI: Game over beatsOffset = " + String(beatsOffset));
+                beats[beatsOffset].isAlive = false;
             }
         }
     }
 
-    // Create new cursors if needed.
-    EVERY_N_MILLISECONDS(creationSpeed) { createCursor(); } // change patterns periodically
+    // Create new beatss if needed.
+    EVERY_N_MILLISECONDS(creationSpeed) { createbeats(); } // change patterns periodically
 }
 
 void UpdateScoreBoard()
