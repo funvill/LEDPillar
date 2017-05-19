@@ -20,17 +20,17 @@ static const unsigned char SETTINGS_MAX_BEATS = 10; // The max number of beats t
 static const unsigned char SETTINGS_FRAMES_PER_SECOND = 120;
 static const unsigned char SETTING_BEAT_TAIL_LENGTH = 4; // The length of the fading tail.
 static const unsigned long SETTING_SERIAL_BAUD_RATE = 115200; // The baud rate for the debug prints.
-static const unsigned char SETTING_GLOBAL_BRIGHTNESS = 64; // Set the global brightness, this is useful when the LED strip is powered via USB. 0-254
+static const unsigned char SETTING_GLOBAL_BRIGHTNESS = 96; // Set the global brightness, this is useful when the LED strip is powered via USB. 0-254
 static const unsigned char SETTINGS_GOAL_SIZE = 5; // The size of the goal at the bottom of the pillar.
 static CRGB SETTING_GOAL_COLOR = CRGB::Yellow;
 
 static const unsigned short SETTING_CREATION_SPEED_START = 1000 * 3; // The starting time for how often to create a new beat.
-static const unsigned short SETTING_CREATION_SPEED_END = 500; // The minimum time for how often to create a new beat.
+static const unsigned short SETTING_CREATION_SPEED_END = 300; // The minimum time for how often to create a new beat.
 static const unsigned short SETTING_CREATION_SPEED_INCREMENT = 200; // How much faster the creation beats get each time the user scores.
 
 static const unsigned short SETTING_BEAT_SPEED_START = 50; // The starting speed for the movement of the beats.
-static const unsigned short SETTING_BEAT_SPEED_END = 5; // The fastest speed for the movement of the beats.
-static const unsigned short SETTING_BEAT_SPEED_INCREMENT = 5; // How much faster the movement of beats get each time the user scores.
+static const unsigned short SETTING_BEAT_SPEED_END = 40; // The fastest speed for the movement of the beats.
+static const unsigned short SETTING_BEAT_SPEED_INCREMENT = 1; // How much faster the movement of beats get each time the user scores.
 
 static const unsigned short SETTING_SCORE_GOOD = 5; // How many points they get when they press the right button.
 static const unsigned short SETTING_SCORE_BAD = 2; // How many points get removed from their score when they get it wrong.
@@ -289,15 +289,15 @@ void levelUp()
     creationSpeed -= SETTING_CREATION_SPEED_INCREMENT;
     if (creationSpeed < SETTING_CREATION_SPEED_END) {
         creationSpeed = SETTING_CREATION_SPEED_END;
+        // We are already creating them as fast we want to.
+        // Lets increase the speed that the beats move instead.
+        beatsMovementSpeed -= SETTING_BEAT_SPEED_INCREMENT;
+        if (beatsMovementSpeed < SETTING_BEAT_SPEED_END) {
+            beatsMovementSpeed = SETTING_BEAT_SPEED_END;
+        }
     }
 
-    // Increase the speed that the beats move
-    beatsMovementSpeed -= SETTING_BEAT_SPEED_INCREMENT;
-    if (beatsMovementSpeed < SETTING_BEAT_SPEED_END) {
-        beatsMovementSpeed = SETTING_BEAT_SPEED_END;
-    }
-
-    Serial.println("FYI: new beatsMovementSpeed = " + String(beatsMovementSpeed) + ", new creationSpeed = " + String(creationSpeed));
+    Serial.println("FYI: beatsMovementSpeed = " + String(beatsMovementSpeed) + ", creationSpeed = " + String(creationSpeed));
 }
 void gameScored(CRGB color)
 {
@@ -477,7 +477,7 @@ void nextPattern()
 
 void gameStart()
 {
-    Serial.print("| gameState = Start  | Pattern = " + String( gCurrentPatternNumber) );
+    Serial.print("| gameState = Start  | Pattern = " + String(gCurrentPatternNumber));
 
     // Call the current pattern function once, updating the 'leds' array
     gPatterns[gCurrentPatternNumber]();
