@@ -16,22 +16,45 @@ FASTLED_USING_NAMESPACE
 // Game Settings
 // ----------------------------------------------------------------------------
 static const unsigned char SETTINGS_NUM_LEDS = 30; // The number of LEDs in this strip.
-static const unsigned char SETTINGS_MAX_BEATS = 30;
+static const unsigned char SETTINGS_MAX_BEATS = 10; // The max number of beats that can be on the pillar at the same time.
 static const unsigned char SETTINGS_FRAMES_PER_SECOND = 120;
-static const unsigned char SETTINGS_GOAL_SIZE = 5;
-static const unsigned char SETTING_BEAT_TAIL_LENGTH = 4; // The length of the fading tail. 
+static const unsigned char SETTING_BEAT_TAIL_LENGTH = 4; // The length of the fading tail.
+static const unsigned int SETTING_SERIAL_BAUD_RATE = 9600; // The baud rate for the debug prints.
+static const unsigned char SETTING_GLOBAL_BRIGHTNESS = 96; // Set the global brightness, this is useful when the LED strip is powered via USB. 0-254
+static const unsigned char SETTINGS_GOAL_SIZE = 5; // The size of the goal at the bottom of the pillar.
+static CRGB SETTING_GOAL_COLOR = CRGB::Yellow;
 
 // Pins
+// ----------------------------------------------------------------------------
 static const unsigned char SETTING_PIN_LED_DATA = 6;
 static const unsigned char SETTING_SCORE_BOARD_CS = 10;
 static const unsigned char SETTING_PIN_PLAYER_GREEN_BUTTON = 2;
 static const unsigned char SETTING_PIN_PLAYER_BLUE_BUTTON = 3;
 static const unsigned char SETTING_PIN_PLAYER_RED_BUTTON = 4;
-static const unsigned int SETTING_SERIAL_BAUD_RATE = 9600;
+
+// Globals
+// ----------------------------------------------------------------------------
 
 // Score display
 static const unsigned char SETTING_SCORE_BOARD_DISPLAYS = 4;
 LedMatrix ledMatrix = LedMatrix(SETTING_SCORE_BOARD_DISPLAYS, SETTING_SCORE_BOARD_CS);
+
+// Game states
+static const unsigned char GAME_STATE_STARTUP = 0;
+static const unsigned char GAME_STATE_RUNNING = 1;
+static const unsigned char GAME_STATE_GAMEOVER = 2;
+unsigned char gameState;
+
+// Game score
+unsigned int gameScore;
+
+// Creation speed.
+// The speed that new beats will be created on the pillar at a time.
+unsigned short creationSpeed;
+
+// LEDs
+// The current status of all the LEDS
+CRGB leds[SETTINGS_NUM_LEDS];
 
 // Buttons
 class CButtons {
@@ -77,20 +100,6 @@ public:
 static const unsigned char BUTTON_MAX = 3;
 CButtons inputsButtons[BUTTON_MAX];
 
-// Game states
-static const unsigned char GAME_STATE_STARTUP = 0;
-static const unsigned char GAME_STATE_RUNNING = 1;
-static const unsigned char GAME_STATE_GAMEOVER = 2;
-unsigned char gameState;
-
-unsigned int gameScore;
-
-//
-unsigned short creationSpeed;
-
-// The current status of all the LEDS
-CRGB leds[SETTINGS_NUM_LEDS];
-
 class CBeats {
 private:
     unsigned long lastMove;
@@ -101,7 +110,6 @@ public:
     unsigned short speed; // Lower is faster
     CRGB color;
 
-
     Cbeatss()
     {
         reset();
@@ -109,7 +117,7 @@ public:
 
     void reset()
     {
-        // This beat is dead 
+        // This beat is dead
         isAlive = false;
 
         // Change any of the tail of the LEDs to black
@@ -146,7 +154,6 @@ public:
 
         return true;
     }
-    
 
     void draw()
     {
@@ -161,12 +168,12 @@ public:
     {
         // Move the beats.
         location--;
-       
-       // Create a tail of fading LEDs. 
+
+        // Create a tail of fading LEDs.
         for (int offsetLED = location; offsetLED < SETTINGS_NUM_LEDS && (offsetLED - location) < SETTING_BEAT_TAIL_LENGTH; offsetLED++) {
-            leds[offsetLED].fadeToBlackBy( 220 - ((offsetLED - location)*20) );
+            leds[offsetLED].fadeToBlackBy(220 - ((offsetLED - location) * 20));
         }
-        // ensure that the last LED in the tail is black. 
+        // ensure that the last LED in the tail is black.
         if (location < SETTINGS_NUM_LEDS - SETTING_BEAT_TAIL_LENGTH) {
             leds[location + SETTING_BEAT_TAIL_LENGTH] = CRGB::Black;
         }
@@ -186,7 +193,7 @@ public:
         }
 
         if (lastMove < millis() - speed) {
-            lastMove = millis() ; 
+            lastMove = millis();
             move();
         }
 
@@ -198,84 +205,67 @@ CBeats beats[SETTINGS_MAX_BEATS];
 
 void setup()
 {
+    // initialize serial communications
+    Serial.begin(SETTING_SERIAL_BAUD_RATE);
+
+    // Print version info
+    Serial.println("LED Pillar v0.1.0");
+    Serial.println("Last updated: 2017 May 18 ");
+    Serial.println("More information: https://blog.abluestar.com/projects/2017-led-pillar");
+    Serial.println("---------------------------------------------------------------------\n\n");
+
     // LEDs
+    Serial.println("FYI: Setting up the LEDS. LED Count = " + String(SETTINGS_NUM_LEDS));
     FastLED.addLeds<NEOPIXEL, SETTING_PIN_LED_DATA>(leds, SETTINGS_NUM_LEDS);
+    // set master brightness control
+    FastLED.setBrightness(SETTING_GLOBAL_BRIGHTNESS);
 
     // Buttons.
+    Serial.println("FYI: Setting up the buttons");
     inputsButtons[0].Init(SETTING_PIN_PLAYER_GREEN_BUTTON, CRGB::Green);
     inputsButtons[1].Init(SETTING_PIN_PLAYER_BLUE_BUTTON, CRGB::Blue);
     inputsButtons[2].Init(SETTING_PIN_PLAYER_RED_BUTTON, CRGB::Red);
 
-    // initialize serial communications
-    Serial.begin(SETTING_SERIAL_BAUD_RATE);
-
-    // led Matrix
+    // LED Matrix / Score board.
+    Serial.println("FYI: Setting up the LED Matrix for the score board");
     ledMatrix.init();
     ledMatrix.setRotation(true);
     ledMatrix.setTextAlignment(TEXT_ALIGN_LEFT);
     ledMatrix.setCharWidth(8);
     ledMatrix.setText("0000");
 
+    // Reset the game back to defaults.
     reset();
 }
 
 void reset()
 {
+    Serial.println("FYI: Resetting the game back to defaults");
     gameScore = 0;
     creationSpeed = 1000 * 5;
     gameState = GAME_STATE_STARTUP;
 
     // Set all the LEDS to black
-    for (unsigned short ledOffset = 0; ledOffset < SETTINGS_NUM_LEDS; ledOffset++) {
-        leds[ledOffset] = CRGB::Black;
+    for (unsigned short offsetLED = 0; offsetLED < SETTINGS_NUM_LEDS; offsetLED++) {
+        leds[offsetLED] = CRGB::Black;
     }
 
-    //
-    for (unsigned short beatsOffset = 0; beatsOffset < SETTINGS_MAX_BEATS; beatsOffset++) {
-        beats[beatsOffset].reset();
+    // Reset all the beats back to their starting locations.
+    for (unsigned short offsetBeat = 0; offsetBeat < SETTINGS_MAX_BEATS; offsetBeat++) {
+        beats[offsetBeat].reset();
     }
 }
 
 void createbeats()
 {
     // Search thought the list of beatss and find one that we can create.
-    for (int i = 0; i < SETTINGS_MAX_BEATS; i++) {
-        if (beats[i].create()) {
-            Serial.print(" FYI: beats was created at offset = " + String(i));
+    for (unsigned char offsetBeat = 0; offsetBeat < SETTINGS_MAX_BEATS; offsetBeat++) {
+        if (beats[offsetBeat].create()) {
+            Serial.print(" FYI: beats was created at offsetBeat = " + String(offsetBeat));
             return; // We were able to create a new beats
         }
     }
-
     Serial.print(" Error: No more beatss to create.");
-}
-
-void drawGoal()
-{
-    // Set up the goal
-    for (unsigned char ledOffset = 0; ledOffset < SETTINGS_GOAL_SIZE; ledOffset++) {
-        leds[ledOffset] = CRGB::Yellow;
-    }
-}
-
-void gameStart()
-{
-    Serial.print(" | gameState = Start");
-
-    // Set all the LEDS to black
-    for (unsigned short ledOffset = 0; ledOffset < SETTINGS_NUM_LEDS; ledOffset++) {
-        leds[ledOffset] = CRGB::Black;
-    }
-
-    drawGoal();
-
-    // If any button is pressed start the game.
-    for (int i = 0; i < BUTTON_MAX; i++) {
-        if (inputsButtons[i].isButtonDown()) {
-            // A button has been pressed.
-            gameState = GAME_STATE_RUNNING;
-            createbeats();
-        }
-    }
 }
 
 void gameOver()
@@ -287,36 +277,39 @@ void gameLoop()
 {
     Serial.print(" | gameState = Loop");
 
-    drawGoal();
-
     // Move the beatss.
-    for (int beatsOffset = 0; beatsOffset < SETTINGS_MAX_BEATS; beatsOffset++) {
-        if (!beats[beatsOffset].isAlive) {
+    for (int offsetBeats = 0; offsetBeats < SETTINGS_MAX_BEATS; offsetBeats++) {
+        if (!beats[offsetBeats].isAlive) {
             continue;
         }
-        beats[beatsOffset].loop();
+        beats[offsetBeats].loop();
 
         // Check to see if this is in the beats offset area.
-        if (beats[beatsOffset].location < SETTINGS_GOAL_SIZE) {
+        if (beats[offsetBeats].location < SETTINGS_GOAL_SIZE) {
             // Check to see if the corresponding button has been pressed.
-            for (int buttonOffset = 0; buttonOffset < BUTTON_MAX; buttonOffset++) {
-                if (inputsButtons[buttonOffset].color == beats[beatsOffset].color) {
+            for (int offsetButton = 0; offsetButton < BUTTON_MAX; offsetButton++) {
+                if (inputsButtons[offsetButton].color == beats[offsetBeats].color) {
                     // We found the right button
-                    if (inputsButtons[buttonOffset].isButtonDown()) {
+                    if (inputsButtons[offsetButton].isButtonDown()) {
                         // The right button and the right color has been pressed.
                         gameScore++;
-                        beats[beatsOffset].reset(); 
+                        beats[offsetBeats].reset();
                         break;
                     }
                 }
             }
 
-            if (beats[beatsOffset].location == 0) {
+            if (beats[offsetBeats].location == 0) {
                 // Game over
-                Serial.print(" FYI: Game over beatsOffset = " + String(beatsOffset));
-                beats[beatsOffset].isAlive = false;
+                Serial.print(" FYI: Game over offsetBeats = " + String(offsetBeats));
+                beats[offsetBeats].isAlive = false;
             }
         }
+    }
+
+    // Draw the goal.
+    for (unsigned char offsetLED = 0; offsetLED < SETTINGS_GOAL_SIZE; offsetLED++) {
+        leds[offsetLED] = SETTING_GOAL_COLOR;
     }
 
     // Create new beatss if needed.
@@ -338,8 +331,8 @@ void loop()
     Serial.print(" | gameScore = " + String(gameScore));
 
     // Check the buttons
-    for (int buttonOffset = 0; buttonOffset < BUTTON_MAX; buttonOffset++) {
-        inputsButtons[buttonOffset].loop();
+    for (int offsetButton = 0; offsetButton < BUTTON_MAX; offsetButton++) {
+        inputsButtons[offsetButton].loop();
     }
 
     if (gameState == GAME_STATE_STARTUP) {
@@ -359,4 +352,100 @@ void loop()
     FastLED.show();
     // insert a delay to keep the framerate modest
     FastLED.delay(1000 / SETTINGS_FRAMES_PER_SECOND);
+}
+
+// Demo mode
+// ----------------------------------------------------------------------------
+
+// Used for demo patterns
+// List of patterns to cycle through.  Each is defined as a separate function below.
+typedef void (*SimplePatternList[])();
+SimplePatternList gPatterns = { rainbow, rainbowWithGlitter, confetti, sinelon, juggle, bpm };
+uint8_t gCurrentPatternNumber = 0; // Index number of which pattern is current
+uint8_t gHue = 0; // rotating "base color" used by many of the patterns
+
+#define ARRAY_SIZE(A) (sizeof(A) / sizeof((A)[0]))
+void nextPattern()
+{
+    // add one to the current pattern number, and wrap around at the end
+    gCurrentPatternNumber = (gCurrentPatternNumber + 1) % ARRAY_SIZE(gPatterns);
+}
+
+void gameStart()
+{
+    Serial.print(" | gameState = Start");
+
+    // Call the current pattern function once, updating the 'leds' array
+    gPatterns[gCurrentPatternNumber]();
+
+    // do some periodic updates
+    EVERY_N_MILLISECONDS(20) { gHue++; } // slowly cycle the "base color" through the rainbow
+    EVERY_N_SECONDS(10) { nextPattern(); } // change patterns periodically
+
+    // If any button is pressed start the game.
+    for (int offsetButton = 0; offsetButton < BUTTON_MAX; offsetButton++) {
+        if (inputsButtons[offsetButton].isButtonDown()) {
+            // A button has been pressed.
+            gameState = GAME_STATE_RUNNING;
+            createbeats();
+        }
+    }
+}
+
+void rainbow()
+{
+    // FastLED's built-in rainbow generator
+    fill_rainbow(leds, SETTINGS_NUM_LEDS, gHue, 7);
+}
+
+void rainbowWithGlitter()
+{
+    // built-in FastLED rainbow, plus some random sparkly glitter
+    rainbow();
+    addGlitter(80);
+}
+
+void addGlitter(fract8 chanceOfGlitter)
+{
+    if (random8() < chanceOfGlitter) {
+        leds[random16(SETTINGS_NUM_LEDS)] += CRGB::White;
+    }
+}
+
+void confetti()
+{
+    // random colored speckles that blink in and fade smoothly
+    fadeToBlackBy(leds, SETTINGS_NUM_LEDS, 10);
+    int pos = random16(SETTINGS_NUM_LEDS);
+    leds[pos] += CHSV(gHue + random8(64), 200, 255);
+}
+
+void sinelon()
+{
+    // a colored dot sweeping back and forth, with fading trails
+    fadeToBlackBy(leds, SETTINGS_NUM_LEDS, 20);
+    int pos = beatsin16(13, 0, SETTINGS_NUM_LEDS);
+    leds[pos] += CHSV(gHue, 255, 192);
+}
+
+void bpm()
+{
+    // colored stripes pulsing at a defined Beats-Per-Minute (BPM)
+    uint8_t BeatsPerMinute = 62;
+    CRGBPalette16 palette = PartyColors_p;
+    uint8_t beat = beatsin8(BeatsPerMinute, 64, 255);
+    for (int i = 0; i < SETTINGS_NUM_LEDS; i++) { //9948
+        leds[i] = ColorFromPalette(palette, gHue + (i * 2), beat - gHue + (i * 10));
+    }
+}
+
+void juggle()
+{
+    // eight colored dots, weaving in and out of sync with each other
+    fadeToBlackBy(leds, SETTINGS_NUM_LEDS, 20);
+    byte dothue = 0;
+    for (int i = 0; i < 8; i++) {
+        leds[beatsin16(i + 7, 0, SETTINGS_NUM_LEDS)] |= CHSV(dothue, 200, 255);
+        dothue += 32;
+    }
 }
