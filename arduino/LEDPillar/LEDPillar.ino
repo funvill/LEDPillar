@@ -20,7 +20,7 @@ static const unsigned char SETTINGS_MAX_BEATS = 10; // The max number of beats t
 static const unsigned char SETTINGS_FRAMES_PER_SECOND = 120;
 static const unsigned char SETTING_BEAT_TAIL_LENGTH = 4; // The length of the fading tail.
 static const unsigned long SETTING_SERIAL_BAUD_RATE = 115200; // The baud rate for the debug prints.
-static const unsigned char SETTING_GLOBAL_BRIGHTNESS = 96; // Set the global brightness, this is useful when the LED strip is powered via USB. 0-254
+static const unsigned char SETTING_GLOBAL_BRIGHTNESS = 64; // Set the global brightness, this is useful when the LED strip is powered via USB. 0-254
 static const unsigned char SETTINGS_GOAL_SIZE = 5; // The size of the goal at the bottom of the pillar.
 static CRGB SETTING_GOAL_COLOR = CRGB::Yellow;
 
@@ -51,9 +51,10 @@ static const unsigned char SETTING_SCORE_BOARD_DISPLAYS = 4;
 LedMatrix ledMatrix = LedMatrix(SETTING_SCORE_BOARD_DISPLAYS, SETTING_SCORE_BOARD_CS);
 
 // Game states
-static const unsigned char GAME_STATE_STARTUP = 0;
-static const unsigned char GAME_STATE_RUNNING = 1;
-static const unsigned char GAME_STATE_GAMEOVER = 2;
+static const unsigned char GAME_STATE_STARTUP = 0; // Demo mode, lots of intersting patters
+static const unsigned char GAME_STATE_STARTING = 1; // The user has started the game, and the score board is counting down to start.
+static const unsigned char GAME_STATE_RUNNING = 2;
+static const unsigned char GAME_STATE_GAMEOVER = 3;
 unsigned char gameState;
 
 // Game score
@@ -304,6 +305,9 @@ void gameScored(CRGB color)
     if (gameScore > 9999) {
         gameScore = 9999;
     }
+    // Update score board
+    UpdateScoreBoard(String(gameScore));
+
     levelUp();
 }
 
@@ -314,6 +318,8 @@ void gameUserFail(CRGB color)
     if (gameScore < -999) {
         gameScore = 999;
     }
+    // Update score board
+    UpdateScoreBoard(String(gameScore));
 
     levelUp();
 }
@@ -324,7 +330,6 @@ void gameOver()
 
 void gameLoop()
 {
-
     // Draw the goal.
     // We want to draw the goal first so that it can be overwritten by the moving beats.
     for (unsigned char offsetLED = 0; offsetLED < SETTINGS_GOAL_SIZE; offsetLED++) {
@@ -384,11 +389,40 @@ void gameLoop()
     }
 }
 
-void UpdateScoreBoard()
+void gameCountDown()
 {
+    UpdateScoreBoard(String(3));
+    for (unsigned short offsetLED = 0; offsetLED < SETTINGS_NUM_LEDS; offsetLED++) {
+        leds[offsetLED] = CRGB::Red;
+    }
+    FastLED.show();
+    delay(1000);
 
+    UpdateScoreBoard(String(2));
+    for (unsigned short offsetLED = 0; offsetLED < SETTINGS_NUM_LEDS; offsetLED++) {
+        leds[offsetLED] = CRGB::Blue;
+    }
+    FastLED.show();
+    delay(1000);
+
+    UpdateScoreBoard(String(1));
+    for (unsigned short offsetLED = 0; offsetLED < SETTINGS_NUM_LEDS; offsetLED++) {
+        leds[offsetLED] = CRGB::Green;
+    }
+    FastLED.show();
+    delay(1000);
+
+    for (unsigned short offsetLED = 0; offsetLED < SETTINGS_NUM_LEDS; offsetLED++) {
+        leds[offsetLED] = CRGB::Black;
+    }
+
+    gameState = GAME_STATE_RUNNING;
+}
+
+void UpdateScoreBoard(String text)
+{
     ledMatrix.clear();
-    ledMatrix.setText(String(gameScore));
+    ledMatrix.setText(text);
     ledMatrix.drawText();
     ledMatrix.commit();
 }
@@ -408,6 +442,8 @@ void loop()
 
     if (gameState == GAME_STATE_STARTUP) {
         gameStart();
+    } else if (gameState == GAME_STATE_STARTING) {
+        gameCountDown();
     } else if (gameState == GAME_STATE_RUNNING) {
         gameLoop();
     } else if (gameState == GAME_STATE_GAMEOVER) {
@@ -415,9 +451,6 @@ void loop()
     } else {
         Serial.println("Error: Unknown gameState = " + String(gameState));
     }
-
-    // Update score board
-    UpdateScoreBoard();
 
     // send the 'leds' array out to the actual LED strip
     FastLED.show();
@@ -444,7 +477,7 @@ void nextPattern()
 
 void gameStart()
 {
-    Serial.print("| gameState = Start");
+    Serial.print("| gameState = Start  | Pattern = " + String( gCurrentPatternNumber) );
 
     // Call the current pattern function once, updating the 'leds' array
     gPatterns[gCurrentPatternNumber]();
@@ -461,8 +494,8 @@ void gameStart()
             for (unsigned short offsetLED = 0; offsetLED < SETTINGS_NUM_LEDS; offsetLED++) {
                 leds[offsetLED] = CRGB::Black;
             }
-            gameState = GAME_STATE_RUNNING;
-            break;
+            gameState = GAME_STATE_STARTING;
+            return;
         }
     }
 }
