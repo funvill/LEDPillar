@@ -18,18 +18,20 @@ FASTLED_USING_NAMESPACE
 static const unsigned char SETTINGS_NUM_LEDS = 30; // The number of LEDs in this strip.
 static const unsigned char SETTINGS_MAX_BEATS = 10; // The max number of beats that can be on the pillar at the same time.
 static const unsigned char SETTINGS_FRAMES_PER_SECOND = 120;
-static const unsigned char SETTING_BEAT_TAIL_LENGTH = 4; // The length of the fading tail.
+static const unsigned char SETTING_BEAT_TAIL_LENGTH = 3; // The length of the fading tail.
 static const unsigned long SETTING_SERIAL_BAUD_RATE = 115200; // The baud rate for the debug prints.
-static const unsigned char SETTING_GLOBAL_BRIGHTNESS = 96; // Set the global brightness, this is useful when the LED strip is powered via USB. 0-254
+static const unsigned char SETTING_GLOBAL_BRIGHTNESS = 64; // Set the global brightness, this is useful when the LED strip is powered via USB. 0-254
 static const unsigned char SETTINGS_GOAL_SIZE = 5; // The size of the goal at the bottom of the pillar.
 static CRGB SETTING_GOAL_COLOR = CRGB::Yellow;
+static const unsigned char SETTINGS_STARTING_LIVES = 5; // How many mistakes that they can make before the game is over.
+
 
 static const unsigned short SETTING_CREATION_SPEED_START = 1000 * 3; // The starting time for how often to create a new beat.
-static const unsigned short SETTING_CREATION_SPEED_END = 300; // The minimum time for how often to create a new beat.
+static const unsigned short SETTING_CREATION_SPEED_END = 1000; // The minimum time for how often to create a new beat.
 static const unsigned short SETTING_CREATION_SPEED_INCREMENT = 200; // How much faster the creation beats get each time the user scores.
 
 static const unsigned short SETTING_BEAT_SPEED_START = 50; // The starting speed for the movement of the beats.
-static const unsigned short SETTING_BEAT_SPEED_END = 40; // The fastest speed for the movement of the beats.
+static const unsigned short SETTING_BEAT_SPEED_END = 10; // The fastest speed for the movement of the beats.
 static const unsigned short SETTING_BEAT_SPEED_INCREMENT = 1; // How much faster the movement of beats get each time the user scores.
 
 static const unsigned short SETTING_SCORE_GOOD = 5; // How many points they get when they press the right button.
@@ -49,6 +51,9 @@ static const unsigned char SETTING_PIN_PLAYER_RED_BUTTON = 4;
 // Score display
 static const unsigned char SETTING_SCORE_BOARD_DISPLAYS = 4;
 LedMatrix ledMatrix = LedMatrix(SETTING_SCORE_BOARD_DISPLAYS, SETTING_SCORE_BOARD_CS);
+unsigned char gameLives; 
+
+
 
 // Game states
 static const unsigned char GAME_STATE_STARTUP = 0; // Demo mode, lots of intersting patters
@@ -123,7 +128,7 @@ public:
     unsigned short speed; // Lower is faster
     CRGB color;
 
-    Cbeats()
+    CBeats()
     {
         reset();
     }
@@ -206,7 +211,7 @@ public:
         }
 
         // See if we have to move the beat
-        if (lastMove <= millis() - speed) {
+        if (lastMove <= millis() - abs(speed)) {
             lastMove = millis();
             move();
         }
@@ -216,6 +221,28 @@ public:
 };
 
 CBeats beats[SETTINGS_MAX_BEATS];
+
+
+void reset()
+{
+    Serial.println("FYI: Resetting the game back to defaults");
+    gameScore = 0;
+    creationSpeed = SETTING_CREATION_SPEED_START;
+    beatsMovementSpeed = SETTING_BEAT_SPEED_START;
+    gameState = GAME_STATE_STARTUP;
+    gameLives = SETTINGS_STARTING_LIVES; 
+
+    // Set all the LEDS to black
+    for (unsigned short offsetLED = 0; offsetLED < SETTINGS_NUM_LEDS; offsetLED++) {
+        leds[offsetLED] = CRGB::Black;
+    }
+
+    // Reset all the beats back to their starting locations.
+    for (unsigned short offsetBeat = 0; offsetBeat < SETTINGS_MAX_BEATS; offsetBeat++) {
+        beats[offsetBeat].reset();
+    }
+}
+
 
 void setup()
 {
@@ -250,25 +277,6 @@ void setup()
 
     // Reset the game back to defaults.
     reset();
-}
-
-void reset()
-{
-    Serial.println("FYI: Resetting the game back to defaults");
-    gameScore = 0;
-    creationSpeed = SETTING_CREATION_SPEED_START;
-    beatsMovementSpeed = SETTING_BEAT_SPEED_START;
-    gameState = GAME_STATE_STARTUP;
-
-    // Set all the LEDS to black
-    for (unsigned short offsetLED = 0; offsetLED < SETTINGS_NUM_LEDS; offsetLED++) {
-        leds[offsetLED] = CRGB::Black;
-    }
-
-    // Reset all the beats back to their starting locations.
-    for (unsigned short offsetBeat = 0; offsetBeat < SETTINGS_MAX_BEATS; offsetBeat++) {
-        beats[offsetBeat].reset();
-    }
 }
 
 void createbeats()
@@ -313,19 +321,41 @@ void gameScored(CRGB color)
 
 void gameUserFail(CRGB color)
 {
+    /*
     // The user pressed the button at the wrong time or let a beat go out of bounds
     gameScore -= SETTING_SCORE_BAD;
     if (gameScore < -999) {
         gameScore = 999;
     }
+    */
+    
+    if( gameLives > 0 ) { 
+        gameLives--; 
+    }
+    if( gameLives == 0 ) {
+        // ToDo: Game over
+        gameLives = 0 ;
+        gameState = GAME_STATE_GAMEOVER ; 
+    }
+
     // Update score board
     UpdateScoreBoard(String(gameScore));
 
-    levelUp();
 }
 
 void gameOver()
 {
+    // Check to see if the user has pressed TWO button at the same time. 
+    unsigned char bottonDown = 0 ; 
+    for (int offsetButton = 0; offsetButton < BUTTON_MAX; offsetButton++) {
+        if (inputsButtons[offsetButton].isButtonDown()) {
+            bottonDown++;
+        }
+    }
+
+    if( bottonDown >= 2 ) {
+        reset(); 
+    }
 }
 
 void gameLoop()
@@ -421,9 +451,15 @@ void gameCountDown()
 
 void UpdateScoreBoard(String text)
 {
+    // Draw the tet. 
     ledMatrix.clear();
     ledMatrix.setText(text);
     ledMatrix.drawText();
+    
+    for( unsigned char offsetLives = 0 ; offsetLives < gameLives ; offsetLives++ ) {
+        ledMatrix.setPixel( 31-offsetLives, 7) ;
+    }
+    
     ledMatrix.commit();
 }
 
@@ -478,6 +514,7 @@ void nextPattern()
 void gameStart()
 {
     Serial.print("| gameState = Start  | Pattern = " + String(gCurrentPatternNumber));
+    UpdateScoreBoard("Push");
 
     // Call the current pattern function once, updating the 'leds' array
     gPatterns[gCurrentPatternNumber]();
