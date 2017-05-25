@@ -22,6 +22,7 @@ static const unsigned char SETTING_BEAT_TAIL_LENGTH = 3; // The length of the fa
 static const unsigned long SETTING_SERIAL_BAUD_RATE = 115200; // The baud rate for the debug prints.
 static const unsigned char SETTING_GLOBAL_BRIGHTNESS = 64; // Set the global brightness, this is useful when the LED strip is powered via USB. 0-254
 static const unsigned char SETTINGS_GOAL_SIZE = 5; // The size of the goal at the bottom of the pillar.
+static const unsigned char SETTINGS_BUTTON_STATUS_SIZE = 5; // The size of the current button down indicator at the top pf the pillar.
 static CRGB SETTING_GOAL_COLOR = CRGB::Yellow;
 static const unsigned char SETTINGS_STARTING_LIVES = 5; // How many mistakes that they can make before the game is over.
 
@@ -46,6 +47,7 @@ static const unsigned char SETTING_PIN_PLAYER_RED_BUTTON = 4;
 
 // Globals
 // ----------------------------------------------------------------------------
+#define NULL 0
 
 // Score display
 static const unsigned char SETTING_SCORE_BOARD_DISPLAYS = 4;
@@ -96,21 +98,30 @@ private:
 
 public:
     CRGB color;
+    bool currentRead;
 
-    bool isButtonDown()
+    // If this button has been pressed in the last loop. This is only triggered once per press.
+    // The button must come up before it is able to be set low again.
+    bool hasButtonBeenPressed()
     {
         return currentState == BUTTON_DOWN;
+    }
+
+    // This returns the actual state of the button. This is useful to tell if the button is being held down.
+    bool isButtonDown()
+    {
+        return currentRead == BUTTON_DOWN;;
     }
 
     void loop()
     {
         // Debounce the button.
-        bool currentRead = digitalRead(this->pin);
-        if (currentRead == lastRead) {
+        this->currentRead = digitalRead(this->pin);
+        if (this->currentRead == lastRead) {
             currentState = BUTTON_UP;
             return;
         }
-        lastRead = currentRead;
+        lastRead = this->currentRead;
 
         if (currentRead == BUTTON_DOWN) {
             Serial.println("FYI: Button was pressed, pin = " + String(pin) + ", Color = " + GetColorAsString(this->color));
@@ -119,6 +130,7 @@ public:
     }
     void Init(unsigned int pin, CRGB color)
     {
+        this->currentRead = false;
         this->pin = pin;
         this->color = color;
         pinMode(this->pin, INPUT_PULLUP);
@@ -233,8 +245,6 @@ public:
 CBeats beats[SETTINGS_MAX_BEATS];
 CBeats* nextBeat;
 
-#define NULL 0
-
 void reset()
 {
     Serial.println("FYI: Resetting the game back to defaults");
@@ -262,8 +272,8 @@ void setup()
     Serial.begin(SETTING_SERIAL_BAUD_RATE);
 
     // Print version info
-    Serial.println("LED Pillar v0.1.0");
-    Serial.println("Last updated: 2017 May 18 ");
+    Serial.println("LED Pillar v0.1.1");
+    Serial.println("Last updated: 2017 May 24 ");
     Serial.println("More information: https://blog.abluestar.com/projects/2017-led-pillar");
     Serial.println("---------------------------------------------------------------------\n\n");
 
@@ -334,14 +344,6 @@ void gameScored(CRGB color)
 
 void gameUserFail(CRGB color)
 {
-    /*
-    // The user pressed the button at the wrong time or let a beat go out of bounds
-    gameScore -= SETTING_SCORE_BAD;
-    if (gameScore < -999) {
-        gameScore = 999;
-    }
-    */
-
     if (gameLives > 0) {
         gameLives--;
     }
@@ -360,7 +362,6 @@ void gameUserFail(CRGB color)
 
 void gameOver()
 {
-    Serial.print(" Game over, Score = " + String(gameScore));
     // Check to see if the user has pressed TWO button at the same time.
     unsigned char bottonDown = 0;
     for (int offsetButton = 0; offsetButton < BUTTON_MAX; offsetButton++) {
@@ -369,6 +370,7 @@ void gameOver()
         }
     }
 
+    Serial.print(" Game over, Score = " + String(gameScore) + ", bottonDown = " + String(bottonDown));
     if (bottonDown >= 2) {
         reset();
     }
@@ -410,8 +412,9 @@ void gameLoop()
     }
 
     // Check to see if the user has pressed a button.
+    bool buttonWasDown = false;
     for (int offsetButton = 0; offsetButton < BUTTON_MAX; offsetButton++) {
-        if (inputsButtons[offsetButton].isButtonDown()) {
+        if (inputsButtons[offsetButton].hasButtonBeenPressed()) {
             bool foundBeat = false;
             // The user has pressed a button.
             if (nextBeat != NULL) {
@@ -443,6 +446,20 @@ void gameLoop()
                     }
                 }
             }
+        }
+
+        // Depending on what buttons are down flash the top of the pillar
+        if (inputsButtons[offsetButton].isButtonDown()) {
+            buttonWasDown = true;
+            for (unsigned char offsetLED = SETTINGS_NUM_LEDS - SETTINGS_BUTTON_STATUS_SIZE; offsetLED < SETTINGS_NUM_LEDS; offsetLED++) {
+                leds[offsetLED] = inputsButtons[offsetButton].color;
+            }
+        }
+    }
+
+    if (!buttonWasDown) {
+        for (unsigned char offsetLED = SETTINGS_NUM_LEDS - SETTINGS_BUTTON_STATUS_SIZE; offsetLED < SETTINGS_NUM_LEDS; offsetLED++) {
+            leds[offsetLED] = CRGB::Black;
         }
     }
 
@@ -560,7 +577,7 @@ void gameStart()
 
     // If any button is pressed start the game.
     for (int offsetButton = 0; offsetButton < BUTTON_MAX; offsetButton++) {
-        if (inputsButtons[offsetButton].isButtonDown()) {
+        if (inputsButtons[offsetButton].hasButtonBeenPressed()) {
             // A button has been pressed. Start the game
             // Set all the LEDS to black
             for (unsigned short offsetLED = 0; offsetLED < SETTINGS_NUM_LEDS; offsetLED++) {
