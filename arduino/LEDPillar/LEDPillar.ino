@@ -25,7 +25,6 @@ static const unsigned char SETTINGS_GOAL_SIZE = 5; // The size of the goal at th
 static CRGB SETTING_GOAL_COLOR = CRGB::Yellow;
 static const unsigned char SETTINGS_STARTING_LIVES = 5; // How many mistakes that they can make before the game is over.
 
-
 static const unsigned short SETTING_CREATION_SPEED_START = 1000 * 3; // The starting time for how often to create a new beat.
 static const unsigned short SETTING_CREATION_SPEED_END = 1000; // The minimum time for how often to create a new beat.
 static const unsigned short SETTING_CREATION_SPEED_INCREMENT = 200; // How much faster the creation beats get each time the user scores.
@@ -51,9 +50,7 @@ static const unsigned char SETTING_PIN_PLAYER_RED_BUTTON = 4;
 // Score display
 static const unsigned char SETTING_SCORE_BOARD_DISPLAYS = 4;
 LedMatrix ledMatrix = LedMatrix(SETTING_SCORE_BOARD_DISPLAYS, SETTING_SCORE_BOARD_CS);
-unsigned char gameLives; 
-
-
+unsigned char gameLives;
 
 // Game states
 static const unsigned char GAME_STATE_STARTUP = 0; // Demo mode, lots of intersting patters
@@ -73,6 +70,19 @@ short beatsMovementSpeed;
 // LEDs
 // The current status of all the LEDS
 CRGB leds[SETTINGS_NUM_LEDS];
+
+String GetColorAsString(CRGB color)
+{
+    if (color.red > 100) {
+        return String("Red");
+    } else if (color.green > 100) {
+        return String("Green");
+    } else if (color.blue > 100) {
+        return String("Blue");
+    }
+
+    return String("Unknown r=" + String(color.red) + ", g=" + String(color.green) + ", b=" + String(color.blue));
+}
 
 // Buttons
 class CButtons {
@@ -103,7 +113,7 @@ public:
         lastRead = currentRead;
 
         if (currentRead == BUTTON_DOWN) {
-            Serial.println("FYI: Button was pressed, pin = " + String(pin));
+            Serial.println("FYI: Button was pressed, pin = " + String(pin) + ", Color = " + GetColorAsString(this->color));
         }
         currentState = currentRead;
     }
@@ -221,7 +231,9 @@ public:
 };
 
 CBeats beats[SETTINGS_MAX_BEATS];
+CBeats* nextBeat;
 
+#define NULL 0
 
 void reset()
 {
@@ -230,7 +242,7 @@ void reset()
     creationSpeed = SETTING_CREATION_SPEED_START;
     beatsMovementSpeed = SETTING_BEAT_SPEED_START;
     gameState = GAME_STATE_STARTUP;
-    gameLives = SETTINGS_STARTING_LIVES; 
+    gameLives = SETTINGS_STARTING_LIVES;
 
     // Set all the LEDS to black
     for (unsigned short offsetLED = 0; offsetLED < SETTINGS_NUM_LEDS; offsetLED++) {
@@ -241,8 +253,8 @@ void reset()
     for (unsigned short offsetBeat = 0; offsetBeat < SETTINGS_MAX_BEATS; offsetBeat++) {
         beats[offsetBeat].reset();
     }
+    nextBeat = NULL;
 }
-
 
 void setup()
 {
@@ -284,7 +296,7 @@ void createbeats()
     // Search thought the list of beats and find one that we can create.
     for (unsigned char offsetBeat = 0; offsetBeat < SETTINGS_MAX_BEATS; offsetBeat++) {
         if (beats[offsetBeat].create(beatsMovementSpeed)) {
-            Serial.println("FYI: beats was created at offsetBeat = " + String(offsetBeat));
+            Serial.println("FYI: beats was created at offsetBeat = " + String(offsetBeat) + ", Color = " + GetColorAsString(beats[offsetBeat].color));
             return; // We were able to create a new beats
         }
     }
@@ -305,7 +317,7 @@ void levelUp()
         }
     }
 
-    Serial.println("FYI: beatsMovementSpeed = " + String(beatsMovementSpeed) + ", creationSpeed = " + String(creationSpeed));
+    Serial.println("FYI: levelUp. beatsMovementSpeed = " + String(beatsMovementSpeed) + ", creationSpeed = " + String(creationSpeed));
 }
 void gameScored(CRGB color)
 {
@@ -313,9 +325,10 @@ void gameScored(CRGB color)
     if (gameScore > 9999) {
         gameScore = 9999;
     }
+    Serial.println("FYI: Game Scored. Color = " + GetColorAsString(color) + ", Score = " + String(gameScore));
+
     // Update score board
     UpdateScoreBoard(String(gameScore));
-
     levelUp();
 }
 
@@ -328,33 +341,36 @@ void gameUserFail(CRGB color)
         gameScore = 999;
     }
     */
-    
-    if( gameLives > 0 ) { 
-        gameLives--; 
+
+    if (gameLives > 0) {
+        gameLives--;
     }
-    if( gameLives == 0 ) {
+    Serial.println("FYI: gameUserFail. Color = " + GetColorAsString(color) + ", gameLives = " + String(gameLives));
+
+    if (gameLives == 0) {
         // ToDo: Game over
-        gameLives = 0 ;
-        gameState = GAME_STATE_GAMEOVER ; 
+        Serial.println("FYI: gameState = GAME_STATE_GAMEOVER");
+        gameLives = 0;
+        gameState = GAME_STATE_GAMEOVER;
     }
 
     // Update score board
     UpdateScoreBoard(String(gameScore));
-
 }
 
 void gameOver()
 {
-    // Check to see if the user has pressed TWO button at the same time. 
-    unsigned char bottonDown = 0 ; 
+    Serial.print(" Game over, Score = " + String(gameScore));
+    // Check to see if the user has pressed TWO button at the same time.
+    unsigned char bottonDown = 0;
     for (int offsetButton = 0; offsetButton < BUTTON_MAX; offsetButton++) {
         if (inputsButtons[offsetButton].isButtonDown()) {
             bottonDown++;
         }
     }
 
-    if( bottonDown >= 2 ) {
-        reset(); 
+    if (bottonDown >= 2) {
+        reset();
     }
 }
 
@@ -372,41 +388,60 @@ void gameLoop()
             continue;
         }
         beats[offsetBeats].loop();
-        Serial.print("@" + String(offsetBeats) + "=" + String(beats[offsetBeats].location) + ", ");
+
+        Serial.print("@" + String(offsetBeats) + "=" + String(beats[offsetBeats].location) + "[" + GetColorAsString(beats[offsetBeats].color) + "], ");
 
         // Check to see if the beat has gone out of bounds
         if (beats[offsetBeats].location == 0) {
-            Serial.println("FYI: beat out of bounds, offsetBeats = " + String(offsetBeats));
+            if (nextBeat == &beats[offsetBeats]) {
+                nextBeat = NULL;
+            }
+            Serial.println("FYI: beat out of bounds, offsetBeats = " + String(offsetBeats) + ", Color = " + GetColorAsString(beats[offsetBeats].color));
             beats[offsetBeats].reset();
             gameUserFail(beats[offsetBeats].color); // Debug: Show the progression of the game.
+        } else {
+            // Find the next beat.
+            if (nextBeat == NULL) {
+                nextBeat = &beats[offsetBeats];
+            } else if (nextBeat->location > beats[offsetBeats].location) {
+                nextBeat = &beats[offsetBeats];
+            }
         }
     }
 
     // Check to see if the user has pressed a button.
     for (int offsetButton = 0; offsetButton < BUTTON_MAX; offsetButton++) {
         if (inputsButtons[offsetButton].isButtonDown()) {
-            // The user has pressed a button.
-            // Check to see if there are any beats in the goal area that match this color.
             bool foundBeat = false;
-            for (int offsetBeats = 0; offsetBeats < SETTINGS_MAX_BEATS; offsetBeats++) {
-                if (!beats[offsetBeats].isAlive) {
-                    continue;
-                }
-                if (beats[offsetBeats].location < SETTINGS_GOAL_SIZE) {
-                    // We found a beat in the goal location.
-                    // Check to see if it matches the color of the button that was just pressed.
-                    if (inputsButtons[offsetButton].color == beats[offsetBeats].color) {
-                        // The right button and the right color has been pressed.
-                        gameScored(inputsButtons[offsetButton].color);
-                        beats[offsetBeats].reset();
-                        foundBeat = true;
-                        break;
+            // The user has pressed a button.
+            if (nextBeat != NULL) {
+                if (nextBeat->isAlive) {
+                    if (nextBeat->location < SETTINGS_GOAL_SIZE) {
+                        // We found a beat in the goal location.
+                        // Check to see if it matches the color of the button that was just pressed.
+                        if (inputsButtons[offsetButton].color == nextBeat->color) {
+                            // The right button and the right color has been pressed.
+                            gameScored(inputsButtons[offsetButton].color);
+                            nextBeat->reset();
+                            nextBeat = NULL;
+                            foundBeat = true;
+                            break;
+                        }
                     }
                 }
             }
+
             if (!foundBeat) {
                 // The user pressed the button early or the wrong button!
                 gameUserFail(inputsButtons[offsetButton].color);
+                // If there is a color at the bottom kill it
+                if (nextBeat != NULL) {
+                    if (nextBeat->location < SETTINGS_GOAL_SIZE) {
+                        // Kill this beat.
+                        nextBeat->reset();
+                        nextBeat = NULL;
+                    }
+                }
             }
         }
     }
@@ -451,15 +486,15 @@ void gameCountDown()
 
 void UpdateScoreBoard(String text)
 {
-    // Draw the tet. 
+    // Draw the tet.
     ledMatrix.clear();
     ledMatrix.setText(text);
     ledMatrix.drawText();
-    
-    for( unsigned char offsetLives = 0 ; offsetLives < gameLives ; offsetLives++ ) {
-        ledMatrix.setPixel( 31-offsetLives, 7) ;
+
+    for (unsigned char offsetLives = 0; offsetLives < gameLives; offsetLives++) {
+        ledMatrix.setPixel(31 - offsetLives, 7);
     }
-    
+
     ledMatrix.commit();
 }
 
@@ -513,7 +548,7 @@ void nextPattern()
 
 void gameStart()
 {
-    Serial.print("| gameState = Start  | Pattern = " + String(gCurrentPatternNumber));
+    Serial.print("| gameState = Start | Pattern = " + String(gCurrentPatternNumber));
     UpdateScoreBoard("Push");
 
     // Call the current pattern function once, updating the 'leds' array
