@@ -48,6 +48,7 @@ static const unsigned char SETTING_PIN_PLAYER_RED_BUTTON = 4;
 // Globals
 // ----------------------------------------------------------------------------
 #define NULL 0
+uint8_t gCurrentPatternNumber = 0; // Index number of which pattern is current
 
 // Score display
 static const unsigned char SETTING_SCORE_BOARD_DISPLAYS = 4;
@@ -253,6 +254,7 @@ void reset()
     beatsMovementSpeed = SETTING_BEAT_SPEED_START;
     gameState = GAME_STATE_STARTUP;
     gameLives = SETTINGS_STARTING_LIVES;
+    gCurrentPatternNumber = 0 ; 
 
     // Set all the LEDS to black
     for (unsigned short offsetLED = 0; offsetLED < SETTINGS_NUM_LEDS; offsetLED++) {
@@ -301,10 +303,10 @@ void createbeats()
 {
     // Search thought the list of beats and find one that we can create.
     for (unsigned char offsetBeat = 0; offsetBeat < SETTINGS_MAX_BEATS; offsetBeat++) {
-        if (!beats[offsetBeat].create(beatsMovementSpeed)) {
-            Serial.println("Error: Could not create beat");
-            return; // We were able to create a new beats
-        }
+        if (beats[offsetBeat].create(beatsMovementSpeed)) {
+            // We were able to create a new beats
+            return; 
+        } 
     }
     Serial.println("Error: No more beats to create");
 }
@@ -345,10 +347,16 @@ void gameUserFail(CRGB color)
     }
     Serial.println("FYI: gameUserFail. Color = " + GetColorAsString(color) + ", gameLives = " + String(gameLives));
 
+
+    // Debug 
+    levelUp();
+
+    /*
     if (gameLives == 0) {
         gameLives = 0;
         gameState = GAME_STATE_GAMEOVER;
     }
+    */
 
     // Update score board
     UpdateScoreBoard(String(gameScore));
@@ -548,7 +556,6 @@ void loop()
 // List of patterns to cycle through.  Each is defined as a separate function below.
 typedef void (*SimplePatternList[])();
 SimplePatternList gPatterns = { rainbowWithGlitter, confetti, sinelon, juggle, bpm };
-uint8_t gCurrentPatternNumber = 0; // Index number of which pattern is current
 uint8_t gHue = 0; // rotating "base color" used by many of the patterns
 
 #define ARRAY_SIZE(A) (sizeof(A) / sizeof((A)[0]))
@@ -560,14 +567,14 @@ void nextPattern()
 
 void gameStart()
 {
-    // Serial.print("| gameState = Start | Pattern = " + String(gCurrentPatternNumber));
+    Serial.print("| gameState = Start | Pattern = " + String(gCurrentPatternNumber));
     UpdateScoreBoard("Push");
 
     // Call the current pattern function once, updating the 'leds' array
     gPatterns[gCurrentPatternNumber]();
 
     // do some periodic updates
-    EVERY_N_MILLISECONDS(20) { gHue++; } // slowly cycle the "base color" through the rainbow
+    EVERY_N_MILLISECONDS(10) { gHue += 3; } // slowly cycle the "base color" through the rainbow
     EVERY_N_SECONDS(10) { nextPattern(); } // change patterns periodically
 
     // If any button is pressed start the game.
@@ -623,7 +630,7 @@ void sinelon()
 void bpm()
 {
     // colored stripes pulsing at a defined Beats-Per-Minute (BPM)
-    uint8_t BeatsPerMinute = 62;
+    uint8_t BeatsPerMinute = 100;
     CRGBPalette16 palette = PartyColors_p;
     uint8_t beat = beatsin8(BeatsPerMinute, 64, 255);
     for (int i = 0; i < SETTINGS_NUM_LEDS; i++) { //9948
