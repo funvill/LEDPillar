@@ -16,7 +16,7 @@ FASTLED_USING_NAMESPACE
 // Game Settings
 // ----------------------------------------------------------------------------
 static const unsigned short SETTINGS_NUM_LEDS = (30*5); // The number of LEDs in this strip.
-static const unsigned char SETTINGS_MAX_BEATS = 10; // The max number of beats that can be on the pillar at the same time.
+static const unsigned char SETTINGS_MAX_BEATS = 5; // The max number of beats that can be on the pillar at the same time.
 static const unsigned char SETTINGS_FRAMES_PER_SECOND = 120;
 static const unsigned char SETTING_BEAT_TAIL_LENGTH = 3; // The length of the fading tail.
 static const unsigned long SETTING_SERIAL_BAUD_RATE = 115200; // The baud rate for the debug prints.
@@ -349,14 +349,13 @@ void gameUserFail(CRGB color)
 
 
     // Debug 
-    levelUp();
+    // levelUp();
 
-    /*
+
     if (gameLives == 0) {
         gameLives = 0;
         gameState = GAME_STATE_GAMEOVER;
     }
-    */
 
     // Update score board
     UpdateScoreBoard(String(gameScore));
@@ -519,6 +518,8 @@ void UpdateScoreBoard(String text)
 
 void loop()
 {
+    // delay(200); 
+
     static unsigned long lastFrame = 0;
     Serial.println("");
     Serial.print(millis());
