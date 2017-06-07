@@ -23,7 +23,7 @@ static const unsigned long SETTING_SERIAL_BAUD_RATE = 115200; // The baud rate f
 static const unsigned char SETTING_GLOBAL_BRIGHTNESS = 64; // Set the global brightness, this is useful when the LED strip is powered via USB. 0-254
 static const unsigned char SETTINGS_GOAL_SIZE = 10; // The size of the goal at the bottom of the pillar.
 static const unsigned char SETTINGS_BUTTON_STATUS_SIZE = 5; // The size of the current button down indicator at the top pf the pillar.
-static CRGB SETTING_GOAL_COLOR = CRGB::Yellow;
+static CRGB SETTING_GOAL_COLOR = CRGB::Goldenrod; // DarkOrchid; // https://github.com/FastLED/FastLED/wiki/Pixel-reference
 static const unsigned char SETTINGS_STARTING_LIVES = 5; // How many mistakes that they can make before the game is over.
 
 static const unsigned short SETTING_CREATION_SPEED_START = (1000 * 2); // The starting time for how often to create a new beat.
@@ -155,7 +155,7 @@ private:
 public:
     bool isAlive;
     short location;
-    unsigned short speed; // Lower is faster
+    short speed; // Lower is faster
     CRGB color;
 
     CBeats()
@@ -177,7 +177,7 @@ public:
         }
     }
 
-    bool create(unsigned short movementSpeed = SETTING_BEAT_SPEED_START)
+    bool create(short movementSpeed = SETTING_BEAT_SPEED_START)
     {
         if (isAlive) {
             // This beats is alive. We can not create on it.
