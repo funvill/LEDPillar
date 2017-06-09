@@ -20,7 +20,7 @@ static const unsigned char SETTINGS_MAX_BEATS = 5; // The max number of beats th
 static const unsigned char SETTINGS_FRAMES_PER_SECOND = 120;
 static const unsigned char SETTING_BEAT_TAIL_LENGTH = 3; // The length of the fading tail.
 static const unsigned long SETTING_SERIAL_BAUD_RATE = 115200; // The baud rate for the debug prints.
-static const unsigned char SETTING_GLOBAL_BRIGHTNESS = 64; // Set the global brightness, this is useful when the LED strip is powered via USB. 0-254
+static const unsigned char SETTING_GLOBAL_BRIGHTNESS = 255; // Set the global brightness, this is useful when the LED strip is powered via USB. 0-254
 static const unsigned char SETTINGS_GOAL_SIZE = 5; // The size of the goal at the bottom of the pillar.
 static const unsigned char SETTINGS_BUTTON_STATUS_SIZE = 5; // The size of the current button down indicator at the top pf the pillar.
 static CRGB SETTING_GOAL_COLOR = CRGB::Yellow;
@@ -576,7 +576,7 @@ void gameStart()
 
     // do some periodic updates
     EVERY_N_MILLISECONDS(10) { gHue += 3; } // slowly cycle the "base color" through the rainbow
-    EVERY_N_SECONDS(10) { nextPattern(); } // change patterns periodically
+    EVERY_N_SECONDS(30) { nextPattern(); } // change patterns periodically
 
     // If any button is pressed start the game.
     for (int offsetButton = 0; offsetButton < BUTTON_MAX; offsetButton++) {
