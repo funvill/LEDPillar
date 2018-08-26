@@ -9,6 +9,7 @@
 
 #include "FastLED.h"
 #include "LedMatrix.h"
+#include "CButtons.h"
 #include <SPI.h>
 
 #include <stdio.h>
@@ -20,6 +21,8 @@ FASTLED_USING_NAMESPACE
 // ----------------------------------------------------------------------------
 static const unsigned short SETTINGS_NUM_LEDS = (30 * 4); // The number of LEDs in this strip. 30 per meter, and 4 meters of LEDs.
 static const unsigned short SETTING_GAME_OVER_FLASHING_SPEED = 300; 
+static const unsigned short SETTING_GAME_OVER_RESET_TIMEOUT = 1000 * 60 ; 
+
 static const unsigned short SETTING_CREATE_NEW_BLOCKS_SPEED = 500 ; 
 static const unsigned char SETTINGS_BLOCK_SIZE = 4; // Number of LEDs
 static const unsigned long SETTING_BLOCK_FALL_SPEED = 70; // ms, lower numbers are faster. Starting speed.
@@ -87,6 +90,7 @@ private:
     CButton& blueButton;
 
     unsigned short gameScore;
+    unsigned long gameOverTimer; 
 
     void CheckAndDoGameInput(CButton& red, CButton& green, CButton& blue);
     void CheckAndMoveBlocks();
@@ -123,6 +127,7 @@ void CTetris::Reset()
 
     // Reset the score 
     this->gameScore = 0;
+    this->gameOverTimer = 0 ; 
 }
 
 bool CTetris::Loop(CButton& red, CButton& green, CButton& blue)
@@ -134,15 +139,21 @@ bool CTetris::Loop(CButton& red, CButton& green, CButton& blue)
 
     if (this->CheckForGameOver()) {
         // Game over ! :(
-        this->GameOver();
+        // Check to see if this is the first time we have entered this function since starting 
+        if( this->gameOverTimer == 0 ) {
+            // First time. Set a timeout counter to exit the game over sequence. 
+            gameOverTimer = millis() + SETTING_GAME_OVER_RESET_TIMEOUT ; 
+        }
 
         // Check for reset
-        if (red.isButtonDown() && green.isButtonDown() && blue.isButtonDown()) {
+        if (gameOverTimer < millis() || (red.isButtonDown() && green.isButtonDown() && blue.isButtonDown()) ) {
             // All buttons pressed. Reset
-            this->Setup();
+            this->Reset();
             this->Draw();
             return false;
         }
+
+        this->GameOver();
         return true;
     }
 
