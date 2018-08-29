@@ -1,3 +1,8 @@
+#ifndef __CBUTTON_H__
+#define __CBUTTON_H__
+
+#include <Arduino.h>
+
 // Buttons
 // ----------------------------------------------------------------------------
 class CButton {
@@ -53,3 +58,5 @@ public:
         this->currentState = BUTTON_DOWN;
     }
 };
+
+#endif // __CBUTTON_H__
