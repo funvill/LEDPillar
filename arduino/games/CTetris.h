@@ -39,11 +39,6 @@ private:
     // Container to hold potential blocks.
     CTetrisBlock blocks[SETTINGS_MAX_BLOCKS];
 
-    // Buttons
-    CButton& redButton;
-    CButton& greenButton;
-    CButton& blueButton;
-
     unsigned short ledCount;
     CRGB *leds; 
 
@@ -60,7 +55,7 @@ private:
     void CheckAndCreateBlocks();
     char GetRandomBlockColor();
 
-    static const CRGB GetRGBForBlockType(char blockType);
+    const CRGB GetRGBForBlockType(char blockType);
     unsigned long GetBlockSpeed();
 
 public:

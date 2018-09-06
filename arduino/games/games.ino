@@ -37,11 +37,11 @@ FASTLED_USING_NAMESPACE
 
 // Game Settings
 // ----------------------------------------------------------------------------
-static const unsigned short SETTINGS_NUM_LEDS = (30 * 5); // The number of LEDs in this strip. 30 per meter, and 5 meters of LEDs.
+static const unsigned short SETTINGS_NUM_LEDS = (30 * 6); // The number of LEDs in this strip. 30 per meter, and 5 meters of LEDs.
 
 
 // LEDs
-static const unsigned char SETTING_GLOBAL_BRIGHTNESS = 255; // Set the global brightness, this is useful when the LED strip is powered via USB. 0-254
+static const unsigned char SETTING_GLOBAL_BRIGHTNESS = 200; // Set the global brightness, this is useful when the LED strip is powered via USB. 0-254
 static const unsigned char SETTINGS_FRAMES_PER_SECOND = 120;
 
 // Debug
@@ -69,10 +69,6 @@ uint8_t gHue = 0; // rotating "base color" used by many of the patterns
 // Games
 #include "CTetris.h"
 CTetris gameTetris;
-
-#include "CBall.h"
-CBall gameBall;
-
 
 // Score display
 static const unsigned char SETTING_SCORE_BOARD_DISPLAYS = 4;
@@ -102,13 +98,6 @@ void UpdateScoreBoard(String text)
     ledMatrix.clear();
     ledMatrix.setText(text);
     ledMatrix.drawText();
-
-    /*
-    for (unsigned char offsetLives = 0; offsetLives < gameLives; offsetLives++) {
-        ledMatrix.setPixel(31 - offsetLives, 7);
-    }
-    */
-
     ledMatrix.commit();
 }
 
@@ -147,7 +136,6 @@ void setup()
 
     // Set up the game
     gameTetris.Reset(leds, SETTINGS_NUM_LEDS);
-    gameBall.Reset(leds, SETTINGS_NUM_LEDS);
 }
 
 void loop()
@@ -156,10 +144,7 @@ void loop()
     static unsigned long gameStageChangeTimeout = 0; // How long before you can change the game state again.
 
     if (gameState) {
-
-        // gameBall.Loop(); 
-        // UpdateScoreBoard(String(gameBall.GetGameScore()));
-
+       
         // Do game loop
         if (!gameTetris.Loop(inputsButtons[0], inputsButtons[1], inputsButtons[2])) {
             // Game over.
@@ -169,7 +154,7 @@ void loop()
 
         // Update the score board
         UpdateScoreBoard(String(gameTetris.GetGameScore()));
-
+        
 
     } else {
         // Do demo patterns
@@ -180,7 +165,7 @@ void loop()
 
         // Do some periodic updates
         EVERY_N_MILLISECONDS(10) { gHue += 3; } // slowly cycle the "base color" through the rainbow
-        EVERY_N_SECONDS(30) { nextPattern(); } // change patterns periodically
+        EVERY_N_SECONDS(60) { nextPattern(); } // change patterns periodically
 
         // Check to see if any button has been pressed.
         for (unsigned char buttonOffset = 0; buttonOffset < BUTTON_MAX; buttonOffset++) {

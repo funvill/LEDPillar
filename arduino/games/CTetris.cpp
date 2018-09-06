@@ -314,7 +314,7 @@ bool CTetris::CheckForGameOver()
     return false;
 }
 
-static const CRGB CTetris::GetRGBForBlockType(char blockType)
+const CRGB CTetris::GetRGBForBlockType(char blockType)
 {
     switch (blockType) {
         case BLOCK_TYPE_RED: {
